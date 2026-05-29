@@ -1,0 +1,36 @@
+# Godot source — too large for GitHub (clone separately per README)
+godot-source/
+
+# Build outputs
+build/windows/
+build/mac/
+build/linux/
+build/web/
+*.exe
+*.app
+*.dmg
+*.pkg
+
+# Releases
+releases/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor temp files
+*.tmp
+*.bak
+*.swp
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Node modules
+node_modules/
+
+# Local environment
+*.local
+.env
