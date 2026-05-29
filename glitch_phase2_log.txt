@@ -1,0 +1,8 @@
+
+============================================================
+ Glitch Engine — Phase 2: Rebrand
+============================================================
+Started: Fri May 29 00:46:53 EDT 2026
+
+[ 1/7 ] Patching core/version.py — engine name...
+  ERROR: version.py not found at /Volumes/Lito's Hard Drive/Murphree Enterprises/Glitch-Engine/godot-source/core/version.py
