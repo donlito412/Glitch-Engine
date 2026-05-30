@@ -189,22 +189,66 @@ func _on_response(text: String) -> void:
 	status_label.text = "GlitchAI"
 	input_field.grab_focus()
 
-	# Detect code blocks and show save bar
 	last_code_blocks = GlitchAIScriptGen.extract_code_blocks(text)
 	var gd_blocks = last_code_blocks.filter(func(b): return b["language"] in ["gdscript", "gd", ""])
+
 	if gd_blocks.size() > 0:
 		var code = gd_blocks[0]["code"]
-		var suggested = GlitchAIScriptGen.detect_script_name(code)
 		var is_editor = GlitchAIScriptGen.is_editor_script(code)
+
 		if is_editor:
-			save_type_label.text = "Save build script:"
-			save_path_field.text = "res://" + suggested
+			await _auto_run_editor_script(code)
 		else:
+			var suggested = GlitchAIScriptGen.detect_script_name(code)
 			save_type_label.text = "Save script:"
 			save_path_field.text = "res://scripts/" + suggested
-		save_script_bar.visible = true
+			save_script_bar.visible = true
 
 	provider.get_trial_status()
+
+func _auto_run_editor_script(code: String) -> void:
+	status_label.text = "GlitchAI  |  Building scene..."
+
+	var suggested = GlitchAIScriptGen.detect_script_name(code)
+	var script_file = suggested.get_file() if "/" in suggested else suggested
+	var res_path = "res://tools/" + script_file
+
+	var abs_tools_dir = ProjectSettings.globalize_path("res://tools")
+	DirAccess.make_dir_recursive_absolute(abs_tools_dir)
+
+	var abs_path = abs_tools_dir + "/" + script_file
+	var save_err = GlitchAIScriptGen.save_script(code, abs_path)
+
+	if save_err != OK:
+		_append_message("error", "Failed to save build script to " + res_path)
+		status_label.text = "GlitchAI"
+		return
+
+	if editor_interface_ref:
+		editor_interface_ref.get_resource_filesystem().scan()
+
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var script = ResourceLoader.load(res_path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	if script == null or not script is GDScript:
+		_append_message("error", "Could not load build script. Right-click " + res_path + " in FileSystem and click Run manually.")
+		status_label.text = "GlitchAI"
+		return
+
+	var instance = script.new()
+	if not instance.has_method("_run"):
+		_append_message("error", "Build script has no _run() method.")
+		status_label.text = "GlitchAI"
+		return
+
+	instance._run()
+
+	if editor_interface_ref:
+		editor_interface_ref.get_resource_filesystem().scan()
+
+	_append_message("system", "Scene built. Open the FileSystem panel and look in the scenes/ folder.")
+	status_label.text = "GlitchAI"
 
 func _save_last_script() -> void:
 	var gd_blocks = last_code_blocks.filter(func(b): return b["language"] in ["gdscript", "gd", ""])
@@ -222,11 +266,7 @@ func _save_last_script() -> void:
 
 	if err == OK:
 		save_script_bar.visible = false
-		var is_editor = GlitchAIScriptGen.is_editor_script(code)
-		if is_editor:
-			_append_message("system", "Build script saved to " + path + "\n\nTo build the scene: right-click the script in the FileSystem panel (bottom left) and click Run.")
-		else:
-			_append_message("system", "Script saved to " + path)
+		_append_message("system", "Script saved to " + path)
 		if editor_interface_ref:
 			editor_interface_ref.get_resource_filesystem().scan()
 	else:
