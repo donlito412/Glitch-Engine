@@ -189,7 +189,8 @@ func _detect_scene_build_code(text: String) -> String:
 	var blocks = GlitchAIScriptGen.extract_code_blocks(text)
 	for block in blocks:
 		var code: String = block["code"]
-		if ("ResourceSaver.save" in code or "PackedScene" in code) and "func _run" in code:
+		# Catch ANY script that defines a _run function, as that's the EditorScript standard
+		if "func _run" in code:
 			return code
 	return ""
 
