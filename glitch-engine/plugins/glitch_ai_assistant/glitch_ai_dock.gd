@@ -197,6 +197,9 @@ func _detect_scene_build_code(text: String) -> String:
 			var lines = code.split("\n")
 			var has_root = false
 			for line in lines:
+				var trimmed = line.strip_edges()
+				if trimmed.begins_with("extends ") or trimmed.begins_with("func ") or trimmed.begins_with("@tool"):
+					continue
 				if "var root " in line or "var root=" in line or "var root:" in line:
 					has_root = true
 					
@@ -204,6 +207,9 @@ func _detect_scene_build_code(text: String) -> String:
 				wrapped += "\tvar root = Node3D.new()\n\troot.name = \"GeneratedScene\"\n"
 				
 			for line in lines:
+				var trimmed = line.strip_edges()
+				if trimmed.begins_with("extends ") or trimmed.begins_with("func ") or trimmed.begins_with("@tool"):
+					continue
 				wrapped += "\t" + line + "\n"
 				
 			if not "ResourceSaver.save" in code:
@@ -299,7 +305,7 @@ func _run_autorun_script(code: String) -> void:
 	var compile_err = memory_script.reload()
 
 	if compile_err != OK:
-		_append_message("error", "Scene build failed — script could not compile. Error code: " + str(compile_err))
+		_append_message("error", "Scene build failed — script could not compile. Error code: " + str(compile_err) + "\n\n[color=#a0a0a0]Code that failed:[/color]\n[bgcolor=#1a1a2e][color=#d0d0ff]" + clean_code.xml_escape() + "[/color][/bgcolor]")
 		status_label.text = "GlitchAI"
 		return
 
