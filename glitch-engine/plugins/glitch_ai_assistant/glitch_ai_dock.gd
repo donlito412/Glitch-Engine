@@ -226,18 +226,29 @@ func _on_response(text: String) -> void:
 func _run_autorun_script(code: String) -> void:
 	status_label.text = "GlitchAI  |  Building..."
 
+	# Strip @tool decorator if present — not needed for dynamic execution
+	var clean_code = code.strip_edges()
+	if clean_code.begins_with("@tool"):
+		var newline = clean_code.find("\n")
+		if newline != -1:
+			clean_code = clean_code.substr(newline + 1).strip_edges()
+
+	# Ensure the script extends RefCounted so script.new() works safely
+	if not clean_code.begins_with("extends"):
+		clean_code = "extends RefCounted\n\n" + clean_code
+
 	var script = GDScript.new()
-	script.source_code = code
+	script.source_code = clean_code
 	var compile_err = script.reload()
 
 	if compile_err != OK:
-		_append_message("error", "Scene build failed — script could not compile. Check the Output panel.")
+		_append_message("error", "Scene build failed — script could not compile. Check the Output panel for details.")
 		status_label.text = "GlitchAI"
 		return
 
 	var instance = script.new()
 	if not instance.has_method("_run"):
-		_append_message("error", "Scene build failed — no _run() method found.")
+		_append_message("error", "Scene build failed — no _run() method found in the generated script.")
 		status_label.text = "GlitchAI"
 		return
 
