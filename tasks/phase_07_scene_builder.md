@@ -1,12 +1,12 @@
 # Phase 07 — Scene Builder
 
 ## Tasks
-- [ ] Creating scenes
-- [ ] Creating nodes
-- [ ] Creating level layouts
-- [ ] Creating environment structures
-- [ ] Creating lighting setups
-- [ ] Creating camera setups
-- [ ] Creating gameplay areas
+- [x] Creating scenes
+- [x] Creating nodes
+- [x] Creating level layouts
+- [x] Creating environment structures
+- [x] Creating lighting setups
+- [x] Creating camera setups
+- [x] Creating gameplay areas
 
 ## Approval Required Before Phase 8

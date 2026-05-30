@@ -3,88 +3,95 @@ extends RefCounted
 
 # ============================================================
 # GlitchAI Scene Builder
-# Parses structured build commands from AI responses
-# and creates real .tscn scene files in the project
+# Parses build plans from AI and writes .tscn files to disk
 # ============================================================
 
-# Parse a JSON build plan from AI response
 static func parse_build_plan(text: String) -> Dictionary:
-	# Look for a JSON block tagged with [BUILD_SCENE]
 	var start = text.find("[BUILD_SCENE]")
-	var end = text.find("[/BUILD_SCENE]")
-	if start == -1 or end == -1:
+	var end_tag = text.find("[/BUILD_SCENE]")
+	if start == -1 or end_tag == -1:
 		return {}
-	var json_str = text.substr(start + 13, end - start - 13).strip_edges()
+	var json_str = text.substr(start + 13, end_tag - start - 13).strip_edges()
 	var json = JSON.new()
-	if json.parse(json_str) != OK:
+	var err = json.parse(json_str)
+	if err != OK:
+		push_error("[GlitchAI] Failed to parse build plan JSON: " + json.get_error_message())
 		return {}
-	return json.get_data()
+	var data = json.get_data()
+	if data is Dictionary:
+		return data
+	return {}
 
-# Build a scene from a plan dictionary and save it
-static func build_scene(plan: Dictionary, editor_interface: EditorInterface) -> String:
+static func build_scene(plan: Dictionary, editor_interface) -> String:
 	if plan.is_empty():
-		return "No build plan found."
+		return "No build plan found in response."
 
-	var scene_name = plan.get("scene_name", "new_scene")
-	var root_type = plan.get("root_type", "Node3D")
-	var nodes = plan.get("nodes", [])
-	var scene_path = plan.get("path", "res://scenes/" + scene_name + ".tscn")
+	var scene_name: String = plan.get("scene_name", "NewScene")
+	var root_type: String = plan.get("root_type", "Node3D")
+	var nodes: Array = plan.get("nodes", [])
+	var scene_path: String = plan.get("path", "res://scenes/" + scene_name.to_lower() + ".tscn")
 
-	# Build the .tscn file content
-	var tscn = _build_tscn(scene_name, root_type, nodes)
+	# Build the tscn content
+	var tscn_content = _generate_tscn(scene_name, root_type, nodes)
 
-	# Ensure directory exists
-	var dir = ProjectSettings.globalize_path(scene_path.get_base_dir())
-	DirAccess.make_dir_recursive_absolute(dir)
+	# Convert res:// path to absolute path
+	var abs_path: String
+	if scene_path.begins_with("res://"):
+		abs_path = ProjectSettings.globalize_path(scene_path)
+	else:
+		abs_path = scene_path
+
+	# Make sure the directory exists
+	var dir_path = abs_path.get_base_dir()
+	var dir_err = DirAccess.make_dir_recursive_absolute(dir_path)
+	if dir_err != OK and dir_err != ERR_ALREADY_EXISTS:
+		return "Failed to create directory: " + dir_path + " (error " + str(dir_err) + ")"
 
 	# Write the file
-	var abs_path = ProjectSettings.globalize_path(scene_path)
 	var file = FileAccess.open(abs_path, FileAccess.WRITE)
-	if not file:
-		return "Failed to write scene file: " + scene_path
+	if file == null:
+		var open_err = FileAccess.get_open_error()
+		return "Failed to open file for writing: " + abs_path + " (error " + str(open_err) + ")"
 
-	file.store_string(tscn)
+	file.store_string(tscn_content)
 	file.close()
 
-	# Refresh and open the scene
-	if editor_interface:
+	# Refresh the editor filesystem
+	if editor_interface and editor_interface.has_method("get_resource_filesystem"):
 		editor_interface.get_resource_filesystem().scan()
 
-	return "Scene built: " + scene_path
+	return "Scene built and saved to: " + scene_path + "\n\nDouble-click it in the FileSystem panel to open it."
 
-# Build tscn file content from a plan
-static func _build_tscn(scene_name: String, root_type: String, nodes: Array) -> String:
-	var lines: Array[String] = []
-	var node_count = 1 + nodes.size()
+static func _generate_tscn(scene_name: String, root_type: String, nodes: Array) -> String:
+	var lines: PackedStringArray = []
 
-	lines.append('[gd_scene format=3]')
-	lines.append('')
+	lines.append("[gd_scene format=3]")
+	lines.append("")
+	lines.append("[node name=\"%s\" type=\"%s\"]" % [scene_name, root_type])
+	lines.append("")
 
-	# Root node
-	lines.append('[node name="%s" type="%s"]' % [scene_name, root_type])
-	lines.append('')
-
-	# Child nodes
 	for node_data in nodes:
-		var node_name = node_data.get("name", "Node")
-		var node_type = node_data.get("type", "Node3D")
-		var parent = node_data.get("parent", ".")
+		if not node_data is Dictionary:
+			continue
+		var node_name: String = node_data.get("name", "Node")
+		var node_type: String = node_data.get("type", "Node3D")
+		var parent: String = node_data.get("parent", ".")
 		var properties = node_data.get("properties", {})
 
-		lines.append('[node name="%s" type="%s" parent="%s"]' % [node_name, node_type, parent])
+		lines.append("[node name=\"%s\" type=\"%s\" parent=\"%s\"]" % [node_name, node_type, parent])
 
-		# Write properties
-		for key in properties:
-			var val = properties[key]
-			if val is String:
-				lines.append('%s = "%s"' % [key, val])
-			elif val is bool:
-				lines.append('%s = %s' % [key, "true" if val else "false"])
-			elif val is Array:
-				lines.append('%s = %s' % [key, JSON.stringify(val)])
-			else:
-				lines.append('%s = %s' % [key, str(val)])
+		if properties is Dictionary:
+			for key in properties:
+				var val = properties[key]
+				if val is String:
+					lines.append("%s = %s" % [key, val])
+				elif val is bool:
+					lines.append("%s = %s" % [key, "true" if val else "false"])
+				elif val is float or val is int:
+					lines.append("%s = %s" % [key, str(val)])
+				else:
+					lines.append("%s = %s" % [key, str(val)])
 
-		lines.append('')
+		lines.append("")
 
 	return "\n".join(lines)

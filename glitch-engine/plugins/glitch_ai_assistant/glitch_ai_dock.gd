@@ -21,6 +21,7 @@ var email_panel: PanelContainer
 var email_field: LineEdit
 var save_script_bar: HBoxContainer
 var save_path_field: LineEdit
+var build_scene_bar: HBoxContainer
 
 func _ready() -> void:
 	_build_ui()
@@ -108,10 +109,11 @@ func _build_ui() -> void:
 	save_script_bar.add_child(dismiss_btn)
 
 	# Build scene bar (hidden until AI outputs a build plan)
-	var build_bar = HBoxContainer.new()
-	build_bar.name = "BuildSceneBar"
-	build_bar.visible = false
-	vbox.add_child(build_bar)
+	build_scene_bar = HBoxContainer.new()
+	build_scene_bar.name = "BuildSceneBar"
+	build_scene_bar.visible = false
+	vbox.add_child(build_scene_bar)
+	var build_bar = build_scene_bar
 
 	var build_label = Label.new()
 	build_label.text = "Scene ready to build:"
@@ -157,17 +159,7 @@ func _setup_provider() -> void:
 
 	if provider.has_email():
 		_show_chat_mode()
-		# Check for build plan
-	last_build_plan = GlitchAISceneBuilder.parse_build_plan(text)
-	if not last_build_plan.is_empty():
-		var build_bar = get_node_or_null("BuildSceneBar")
-		if build_bar:
-			var name_label = build_bar.get_node_or_null("BuildNameLabel")
-			if name_label:
-				name_label.text = last_build_plan.get("path", "unknown path")
-			build_bar.visible = true
-
-	provider.get_trial_status()
+		provider.get_trial_status()
 	else:
 		_show_email_mode()
 
@@ -228,6 +220,14 @@ func _on_response(text: String) -> void:
 	status_label.text = "GlitchAI"
 	input_field.grab_focus()
 
+	# Check if response contains a build plan — show build bar
+	last_build_plan = GlitchAISceneBuilder.parse_build_plan(text)
+	if not last_build_plan.is_empty():
+		var name_label = build_scene_bar.get_node_or_null("BuildNameLabel")
+		if name_label:
+			name_label.text = last_build_plan.get("path", "unknown path")
+		build_scene_bar.visible = true
+
 	# Check if response contains code — show save bar
 	last_code_blocks = GlitchAIScriptGen.extract_code_blocks(text)
 	var gdscript_blocks = last_code_blocks.filter(func(b): return b["language"] in ["gdscript", "gd", ""])
@@ -281,9 +281,7 @@ func _build_last_scene() -> void:
 		return
 	var result = GlitchAISceneBuilder.build_scene(last_build_plan, editor_interface)
 	_append_message("system", result)
-	var build_bar = get_node_or_null("BuildSceneBar")
-	if build_bar:
-		build_bar.visible = false
+	build_scene_bar.visible = false
 	last_build_plan = {}
 
 func _clear_chat() -> void:
@@ -305,16 +303,44 @@ func _append_message(role: String, text: String) -> void:
 			chat_output.append_text("\n[color=#f87070]" + clean.xml_escape() + "[/color]\n")
 
 func _format_response(text: String) -> String:
+	# Strip [BUILD_SCENE] blocks from display — show only the explanation
 	var result = text
-	var regex = RegEx.new()
-	# Code blocks
-	regex.compile("```(?:gdscript|gd)?\\n?([\\s\\S]*?)```")
-	for m in regex.search_all(text):
-		var code = m.get_string(1).strip_edges()
-		result = result.replace(m.get_string(), "\n[bgcolor=#1a1a2e][color=#d0d0ff]" + code.xml_escape() + "[/color][/bgcolor]\n")
+	var bs_start = result.find("[BUILD_SCENE]")
+	var bs_end = result.find("[/BUILD_SCENE]")
+	if bs_start != -1 and bs_end != -1:
+		result = result.left(bs_start) + result.substr(bs_end + 14)
+	result = result.strip_edges()
+
+	# Strip [BUILD_SCENE] blocks using string operations (RE2 regex has no lazy quantifier)
+	while true:
+		var start = result.find("[BUILD_SCENE]")
+		var end = result.find("[/BUILD_SCENE]")
+		if start == -1 or end == -1:
+			break
+		result = result.left(start) + result.substr(end + 14)
+
+	# Strip markdown code blocks — find ``` open, grab content, replace
+	while true:
+		var open = result.find("```")
+		if open == -1:
+			break
+		var close = result.find("```", open + 3)
+		if close == -1:
+			break
+		var block = result.substr(open, close - open + 3)
+		# First line may be language tag — skip it
+		var inner = block.substr(3, block.length() - 6).strip_edges()
+		var newline_pos = inner.find("\n")
+		if newline_pos != -1:
+			var first_line = inner.substr(0, newline_pos).strip_edges()
+			if first_line in ["gdscript", "gd", "json", ""] or not first_line.contains(" "):
+				inner = inner.substr(newline_pos + 1).strip_edges()
+		result = result.left(open) + "\n[bgcolor=#1a1a2e][color=#d0d0ff]" + inner.xml_escape() + "[/color][/bgcolor]\n" + result.substr(close + 3)
+
 	# Bold
 	var bold_regex = RegEx.new()
 	bold_regex.compile("\\*\\*([^*]+)\\*\\*")
-	for m in bold_regex.search_all(text):
+	for m in bold_regex.search_all(result):
 		result = result.replace(m.get_string(), "[b]" + m.get_string(1) + "[/b]")
-	return result
+
+	return result.strip_edges()

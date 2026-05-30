@@ -12,7 +12,7 @@ func _enter_tree() -> void:
 		return
 	dock = dock_scene.instantiate()
 	dock.name = "GlitchAI"
-	dock.editor_interface = get_editor_interface()
+	dock.set_editor_interface(get_editor_interface())
 	add_control_to_bottom_panel(dock, "GlitchAI")
 	print("[GlitchAI] Assistant loaded. Click GlitchAI tab at the bottom to open.")
 
