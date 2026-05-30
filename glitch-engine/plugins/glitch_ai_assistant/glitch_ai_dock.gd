@@ -189,9 +189,33 @@ func _detect_scene_build_code(text: String) -> String:
 	var blocks = GlitchAIScriptGen.extract_code_blocks(text)
 	for block in blocks:
 		var code: String = block["code"]
-		# Catch ANY script that defines a _run function, as that's the EditorScript standard
 		if "func _run" in code:
 			return code
+			
+	var clean = text.strip_edges()
+	if "func _run" in clean:
+		return clean
+		
+	# Extreme Fallback: AI dumped raw function body without tags or headers
+	if "add_child" in clean and ".new()" in clean:
+		var wrapped = "extends RefCounted\nfunc _run() -> void:\n"
+		var lines = clean.split("\n")
+		var has_root = false
+		for line in lines:
+			if "var root " in line or "var root=" in line or "var root:" in line:
+				has_root = true
+				
+		if not has_root:
+			wrapped += "\tvar root = Node3D.new()\n\troot.name = \"GeneratedScene\"\n"
+			
+		for line in lines:
+			wrapped += "\t" + line + "\n"
+			
+		if not "ResourceSaver.save" in clean:
+			wrapped += "\n\tvar scene = PackedScene.new()\n\tscene.pack(root)\n\tDirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(\"res://scenes/ai_generated\"))\n\tResourceSaver.save(scene, \"res://scenes/ai_generated/ai_scene.tscn\")\n\tif is_instance_valid(root): root.queue_free()\n"
+			
+		return wrapped
+		
 	return ""
 
 func _on_response(text: String) -> void:
@@ -209,9 +233,13 @@ func _on_response(text: String) -> void:
 			autorun_code = scene_code
 			var regex = RegEx.new()
 			regex.compile("```(?:gdscript|gd)?\\n?[\\s\\S]*?```")
+			var found_block = false
 			for m in regex.search_all(display_text):
 				if "func _run" in m.get_string():
 					display_text = display_text.replace(m.get_string(), "[i](Scene build code executed automatically)[/i]")
+					found_block = true
+			if not found_block:
+				display_text = "[i](Scene build code executed automatically - raw snippet caught)[/i]"
 
 	var scroll_bar = chat_output.get_v_scroll_bar()
 	var scroll_before = scroll_bar.max_value
