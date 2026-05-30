@@ -284,6 +284,16 @@ func _run_autorun_script(code: String) -> void:
 			clean_code = clean_code.left(clean_code.length() - 3)
 		clean_code = clean_code.strip_edges()
 
+	if clean_code.begins_with("@tool"):
+		var newline = clean_code.find("\n")
+		if newline != -1:
+			clean_code = clean_code.substr(newline + 1).strip_edges()
+
+	clean_code = clean_code.replace("extends EditorScript", "extends RefCounted")
+
+	if not clean_code.begins_with("extends"):
+		clean_code = "extends RefCounted\n\n" + clean_code
+
 	var memory_script = GDScript.new()
 	memory_script.source_code = clean_code
 	var compile_err = memory_script.reload()
