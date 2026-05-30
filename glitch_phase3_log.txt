@@ -1,0 +1,60 @@
+
+============================================================
+ Glitch Engine — Phase 3: AI Assistant Plugin
+============================================================
+Started: Fri May 29 13:07:54 EDT 2026
+
+[ 1/5 ] Writing plugin.cfg...
+  ✅ plugin.cfg written
+[ 2/5 ] Writing glitch_ai_plugin.gd...
+  ✅ glitch_ai_plugin.gd written
+[ 3/5 ] Writing glitch_ai_provider.gd...
+  ✅ glitch_ai_provider.gd written
+[ 4/5 ] Writing glitch_ai_context.gd...
+  ✅ glitch_ai_context.gd written
+[ 5/5 ] Writing glitch_ai_dock.gd...
+  ✅ glitch_ai_dock.gd written
+  ✅ glitch_ai_dock.tscn written
+
+Committing Phase 3 plugin to GitHub...
+[main 4f42545] Phase 3: Add GlitchAI Assistant plugin (bottom dock, Anthropic API, context-aware)
+ Committer: Jon Freeze <jonfreeze@Jons-MacBook-Air.local>
+Your name and email address were configured automatically based
+on your username and hostname. Please check that they are accurate.
+You can suppress this message by setting them explicitly:
+
+    git config --global user.name "Your Name"
+    git config --global user.email you@example.com
+
+After doing this, you may fix the identity used for this commit with:
+
+    git commit --amend --reset-author
+
+ 6 files changed, 414 insertions(+)
+ create mode 100644 glitch-engine/plugins/glitch_ai_assistant/glitch_ai_context.gd
+ create mode 100644 glitch-engine/plugins/glitch_ai_assistant/glitch_ai_dock.gd
+ create mode 100644 glitch-engine/plugins/glitch_ai_assistant/glitch_ai_dock.tscn
+ create mode 100644 glitch-engine/plugins/glitch_ai_assistant/glitch_ai_plugin.gd
+ create mode 100644 glitch-engine/plugins/glitch_ai_assistant/glitch_ai_provider.gd
+ create mode 100644 glitch-engine/plugins/glitch_ai_assistant/plugin.cfg
+To https://github.com/donlito412/Glitch-Engine.git
+   2faa331..4f42545  main -> main
+
+============================================================
+ Phase 3 — Plugin files written and pushed to GitHub
+============================================================
+
+NEXT STEP — Install the plugin in Glitch Engine:
+
+1. Open Glitch Engine editor
+2. In the editor menu: Project → Project Settings → Plugins
+3. Find 'GlitchAI Assistant' and click Enable
+4. A 'GlitchAI' tab will appear at the bottom of the editor
+5. Click Settings → enter your Anthropic API key → Save Key
+6. Type any message to start chatting with GlitchAI
+
+NOTE: The plugin files go in your GAME PROJECT's addons/ folder.
+For testing, create a new project in Glitch Engine and copy
+the plugin folder there, OR we set up a test project in Phase 3.
+
+Awaiting your review and approval before continuing.

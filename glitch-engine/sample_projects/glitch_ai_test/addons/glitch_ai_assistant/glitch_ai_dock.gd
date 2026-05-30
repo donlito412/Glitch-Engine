@@ -31,7 +31,7 @@ func set_editor_interface(ei: EditorInterface) -> void:
 
 func _build_ui() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	custom_minimum_size = Vector2(0, 200)
+	custom_minimum_size = Vector2(0, 400)
 
 	var vbox = VBoxContainer.new()
 	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -134,7 +134,7 @@ func _show_chat_mode() -> void:
 	email_panel.visible = false
 	chat_output.visible = true
 	input_field.get_parent().visible = true
-	status_label.text = "🤖 GlitchAI  |  " + provider.user_email
+	status_label.text = "🤖 GlitchAI"
 	_append_message("system", "Welcome back! Ask me anything about your game.")
 
 func _save_email() -> void:
@@ -149,10 +149,10 @@ func _save_email() -> void:
 func _on_trial_status(data: Dictionary) -> void:
 	match data.get("status", ""):
 		"admin":
-			trial_label.text = "  ♾ Unlimited"
+			trial_label.visible = false
 			trial_label.add_theme_color_override("font_color", Color(0.7, 0.7, 1.0))
 		"subscribed":
-			trial_label.text = "  ✅ Subscribed"
+			trial_label.visible = false
 			subscribe_button.visible = false
 		"trial":
 			var remaining = data.get("remaining", 0)
@@ -190,7 +190,7 @@ func _on_response(text: String) -> void:
 	_append_message("assistant", text)
 	input_field.editable = true
 	send_button.disabled = false
-	status_label.text = "🤖 GlitchAI  |  " + provider.user_email
+	status_label.text = "🤖 GlitchAI"
 	input_field.grab_focus()
 	provider.get_trial_status()
 
