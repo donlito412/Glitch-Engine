@@ -31,44 +31,38 @@ static func build_scene(plan: Dictionary, editor_interface) -> String:
 	var nodes: Array = plan.get("nodes", [])
 	var scene_path: String = plan.get("path", "res://scenes/" + scene_name.to_lower() + ".tscn")
 
-	# Build the tscn content
 	var tscn_content = _generate_tscn(scene_name, root_type, nodes)
 
-	# Convert res:// path to absolute path
 	var abs_path: String
 	if scene_path.begins_with("res://"):
 		abs_path = ProjectSettings.globalize_path(scene_path)
 	else:
 		abs_path = scene_path
 
-	# Make sure the directory exists
 	var dir_path = abs_path.get_base_dir()
 	var dir_err = DirAccess.make_dir_recursive_absolute(dir_path)
 	if dir_err != OK and dir_err != ERR_ALREADY_EXISTS:
 		return "Failed to create directory: " + dir_path + " (error " + str(dir_err) + ")"
 
-	# Write the file
 	var file = FileAccess.open(abs_path, FileAccess.WRITE)
 	if file == null:
-		var open_err = FileAccess.get_open_error()
-		return "Failed to open file for writing: " + abs_path + " (error " + str(open_err) + ")"
+		return "Failed to open file for writing: " + abs_path + " (error " + str(FileAccess.get_open_error()) + ")"
 
 	file.store_string(tscn_content)
 	file.close()
 
-	# Refresh the editor filesystem
 	if editor_interface and editor_interface.has_method("get_resource_filesystem"):
 		editor_interface.get_resource_filesystem().scan()
 
 	return "Scene built and saved to: " + scene_path + "\n\nDouble-click it in the FileSystem panel to open it."
 
 static func _generate_tscn(scene_name: String, root_type: String, nodes: Array) -> String:
-	var lines: PackedStringArray = []
+	var sub_resources: PackedStringArray = []
+	var node_lines: PackedStringArray = []
+	var next_id: int = 1
 
-	lines.append("[gd_scene format=3]")
-	lines.append("")
-	lines.append("[node name=\"%s\" type=\"%s\"]" % [scene_name, root_type])
-	lines.append("")
+	node_lines.append("[node name=\"%s\" type=\"%s\"]" % [scene_name, root_type])
+	node_lines.append("")
 
 	for node_data in nodes:
 		if not node_data is Dictionary:
@@ -78,20 +72,63 @@ static func _generate_tscn(scene_name: String, root_type: String, nodes: Array) 
 		var parent: String = node_data.get("parent", ".")
 		var properties = node_data.get("properties", {})
 
-		lines.append("[node name=\"%s\" type=\"%s\" parent=\"%s\"]" % [node_name, node_type, parent])
+		node_lines.append("[node name=\"%s\" type=\"%s\" parent=\"%s\"]" % [node_name, node_type, parent])
 
-		if properties is Dictionary:
-			for key in properties:
-				var val = properties[key]
-				if val is String:
-					lines.append("%s = %s" % [key, val])
-				elif val is bool:
-					lines.append("%s = %s" % [key, "true" if val else "false"])
-				elif val is float or val is int:
-					lines.append("%s = %s" % [key, str(val)])
-				else:
-					lines.append("%s = %s" % [key, str(val)])
+		match node_type:
+			"MeshInstance3D":
+				var mesh_type: String = properties.get("mesh", "BoxMesh")
+				var rid = str(next_id); next_id += 1
+				var sr = "[sub_resource type=\"%s\" id=\"%s\"]" % [mesh_type, rid]
+				if properties.has("size"):   sr += "\nsize = %s"   % _fmt(properties["size"])
+				if properties.has("radius"): sr += "\nradius = %s" % _fmt(properties["radius"])
+				if properties.has("height"): sr += "\nheight = %s" % _fmt(properties["height"])
+				sub_resources.append(sr)
+				node_lines.append("mesh = SubResource(\"%s\")" % rid)
 
+			"CollisionShape3D":
+				var shape_type: String = properties.get("shape", "BoxShape3D")
+				var rid = str(next_id); next_id += 1
+				var sr = "[sub_resource type=\"%s\" id=\"%s\"]" % [shape_type, rid]
+				if properties.has("size"):   sr += "\nsize = %s"   % _fmt(properties["size"])
+				if properties.has("radius"): sr += "\nradius = %s" % _fmt(properties["radius"])
+				if properties.has("height"): sr += "\nheight = %s" % _fmt(properties["height"])
+				sub_resources.append(sr)
+				node_lines.append("shape = SubResource(\"%s\")" % rid)
+
+			"WorldEnvironment":
+				var sky_rid = str(next_id); next_id += 1
+				var env_rid = str(next_id); next_id += 1
+				sub_resources.append("[sub_resource type=\"Sky\" id=\"%s\"]" % sky_rid)
+				var env_sr = "[sub_resource type=\"Environment\" id=\"%s\"]\nbackground_mode = 2\nsky = SubResource(\"%s\")" % [env_rid, sky_rid]
+				if properties.get("fog_enabled", false):
+					env_sr += "\nfog_enabled = true\nfog_density = %s" % str(properties.get("fog_density", 0.01))
+				sub_resources.append(env_sr)
+				node_lines.append("environment = SubResource(\"%s\")" % env_rid)
+
+			_:
+				var skip = ["mesh", "shape", "size", "radius", "height", "fog_enabled", "fog_density"]
+				if properties is Dictionary:
+					for key in properties:
+						if key not in skip:
+							node_lines.append("%s = %s" % [key, _fmt(properties[key])])
+
+		node_lines.append("")
+
+	var lines: PackedStringArray = []
+	lines.append("[gd_scene format=3]")
+	lines.append("")
+	for sr in sub_resources:
+		lines.append(sr)
 		lines.append("")
-
+	for nl in node_lines:
+		lines.append(nl)
 	return "\n".join(lines)
+
+static func _fmt(val) -> String:
+	if val is String:
+		if val.begins_with("Vector") or val.begins_with("Color") or val.begins_with("Basis") or val.begins_with("Transform"):
+			return val
+		return "\"%s\"" % val
+	elif val is bool:
+		return "true" if val else "false"
+	return str(val)

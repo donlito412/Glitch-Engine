@@ -1,8 +1,21 @@
 [gd_scene format=3]
 
+[sub_resource type="Sky" id="1"]
+
+[sub_resource type="Environment" id="2"]
+background_mode = 2
+sky = SubResource("1")
+
+[sub_resource type="BoxMesh" id="3"]
+size = Vector3(200, 1, 200)
+
+[sub_resource type="BoxShape3D" id="4"]
+size = Vector3(200, 1, 200)
+
 [node name="OpenWorld" type="Node3D"]
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("2")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
 rotation_degrees = Vector3(-52, 35, 0)
@@ -12,12 +25,10 @@ shadow_enabled = true
 [node name="Ground" type="StaticBody3D" parent="."]
 
 [node name="GroundMesh" type="MeshInstance3D" parent="Ground"]
-mesh = BoxMesh
-size = Vector3(200, 1, 200)
+mesh = SubResource("3")
 
 [node name="GroundCollision" type="CollisionShape3D" parent="Ground"]
-shape = BoxShape3D
-size = Vector3(200, 1, 200)
+shape = SubResource("4")
 
 [node name="PlayerSpawn" type="Marker3D" parent="."]
 position = Vector3(0, 1, 0)
