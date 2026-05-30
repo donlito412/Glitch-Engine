@@ -212,7 +212,7 @@ func _detect_scene_build_code(text: String) -> String:
 			wrapped += "\t" + line + "\n"
 			
 		if not "ResourceSaver.save" in clean:
-			wrapped += "\n\tvar scene = PackedScene.new()\n\tscene.pack(root)\n\tDirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(\"res://scenes/ai_generated\"))\n\tResourceSaver.save(scene, \"res://scenes/ai_generated/ai_scene.tscn\")\n\tif is_instance_valid(root): root.queue_free()\n"
+			wrapped += "\n\tvar scene = PackedScene.new()\n\tscene.pack(root)\n\tDirAccess.make_dir_recursive_absolute(\"res://scenes/ai_generated\")\n\tResourceSaver.save(scene, \"res://scenes/ai_generated/ai_scene.tscn\")\n\tif is_instance_valid(root): root.free()\n"
 			
 		return wrapped
 		
