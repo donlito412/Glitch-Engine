@@ -4,11 +4,13 @@ extends Control
 const GlitchAIProvider = preload("res://addons/glitch_ai_assistant/glitch_ai_provider.gd")
 const GlitchAIContext = preload("res://addons/glitch_ai_assistant/glitch_ai_context.gd")
 const GlitchAIScriptGen = preload("res://addons/glitch_ai_assistant/script_generator.gd")
+const GlitchAISceneBuilder = preload("res://addons/glitch_ai_assistant/scene_builder.gd")
 
 var provider: Node
 var conversation_history: Array = []
 var editor_interface: EditorInterface
 var last_code_blocks: Array[Dictionary] = []
+var last_build_plan: Dictionary = {}
 
 # UI nodes
 var chat_output: RichTextLabel
@@ -105,6 +107,31 @@ func _build_ui() -> void:
 	dismiss_btn.pressed.connect(func(): save_script_bar.visible = false)
 	save_script_bar.add_child(dismiss_btn)
 
+	# Build scene bar (hidden until AI outputs a build plan)
+	var build_bar = HBoxContainer.new()
+	build_bar.name = "BuildSceneBar"
+	build_bar.visible = false
+	vbox.add_child(build_bar)
+
+	var build_label = Label.new()
+	build_label.text = "Scene ready to build:"
+	build_bar.add_child(build_label)
+
+	var build_name_label = Label.new()
+	build_name_label.name = "BuildNameLabel"
+	build_name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	build_bar.add_child(build_name_label)
+
+	var build_btn = Button.new()
+	build_btn.text = "Build Scene"
+	build_btn.pressed.connect(_build_last_scene)
+	build_bar.add_child(build_btn)
+
+	var build_dismiss = Button.new()
+	build_dismiss.text = "X"
+	build_dismiss.pressed.connect(func(): build_bar.visible = false)
+	build_bar.add_child(build_dismiss)
+
 	# Input row
 	var input_row = HBoxContainer.new()
 	vbox.add_child(input_row)
@@ -130,7 +157,17 @@ func _setup_provider() -> void:
 
 	if provider.has_email():
 		_show_chat_mode()
-		provider.get_trial_status()
+		# Check for build plan
+	last_build_plan = GlitchAISceneBuilder.parse_build_plan(text)
+	if not last_build_plan.is_empty():
+		var build_bar = get_node_or_null("BuildSceneBar")
+		if build_bar:
+			var name_label = build_bar.get_node_or_null("BuildNameLabel")
+			if name_label:
+				name_label.text = last_build_plan.get("path", "unknown path")
+			build_bar.visible = true
+
+	provider.get_trial_status()
 	else:
 		_show_email_mode()
 
@@ -237,6 +274,17 @@ func _on_trial_expired() -> void:
 
 func _on_subscribe_url(url: String) -> void:
 	OS.shell_open(url)
+
+func _build_last_scene() -> void:
+	if last_build_plan.is_empty():
+		_append_message("system", "No scene plan found.")
+		return
+	var result = GlitchAISceneBuilder.build_scene(last_build_plan, editor_interface)
+	_append_message("system", result)
+	var build_bar = get_node_or_null("BuildSceneBar")
+	if build_bar:
+		build_bar.visible = false
+	last_build_plan = {}
 
 func _clear_chat() -> void:
 	chat_output.clear()
