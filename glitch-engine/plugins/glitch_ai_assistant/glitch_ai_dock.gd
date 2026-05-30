@@ -174,12 +174,28 @@ func _on_send(text: String) -> void:
 
 	provider.send_message(system_prompt, conversation_history)
 
+func _extract_autorun(text: String) -> Dictionary:
+	var start_tag = "[AUTORUN]"
+	var end_tag = "[/AUTORUN]"
+	var start = text.find(start_tag)
+	var end = text.find(end_tag)
+	if start == -1 or end == -1:
+		return {"code": "", "display": text}
+	var code = text.substr(start + start_tag.length(), end - start - start_tag.length()).strip_edges()
+	var display = (text.left(start) + text.substr(end + end_tag.length())).strip_edges()
+	return {"code": code, "display": display}
+
 func _on_response(text: String) -> void:
 	conversation_history.append({"role": "assistant", "content": text})
 
+	# Extract any AUTORUN block before displaying
+	var extracted = _extract_autorun(text)
+	var autorun_code: String = extracted["code"]
+	var display_text: String = extracted["display"]
+
 	var scroll_bar = chat_output.get_v_scroll_bar()
 	var scroll_before = scroll_bar.max_value
-	_append_message("assistant", text)
+	_append_message("assistant", display_text)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	scroll_bar.value = scroll_before
@@ -189,56 +205,39 @@ func _on_response(text: String) -> void:
 	status_label.text = "GlitchAI"
 	input_field.grab_focus()
 
-	last_code_blocks = GlitchAIScriptGen.extract_code_blocks(text)
-	var gd_blocks = last_code_blocks.filter(func(b): return b["language"] in ["gdscript", "gd", ""])
+	# Run scene build script if present
+	if autorun_code != "":
+		_run_autorun_script(autorun_code)
+		provider.get_trial_status()
+		return
 
+	# Otherwise check for regular save-able scripts
+	last_code_blocks = GlitchAIScriptGen.extract_code_blocks(display_text)
+	var gd_blocks = last_code_blocks.filter(func(b): return b["language"] in ["gdscript", "gd", ""])
 	if gd_blocks.size() > 0:
 		var code = gd_blocks[0]["code"]
-		var is_editor = GlitchAIScriptGen.is_editor_script(code)
-
-		if is_editor:
-			await _auto_run_editor_script(code)
-		else:
-			var suggested = GlitchAIScriptGen.detect_script_name(code)
-			save_type_label.text = "Save script:"
-			save_path_field.text = "res://scripts/" + suggested
-			save_script_bar.visible = true
+		var suggested = GlitchAIScriptGen.detect_script_name(code)
+		save_type_label.text = "Save script:"
+		save_path_field.text = "res://scripts/" + suggested
+		save_script_bar.visible = true
 
 	provider.get_trial_status()
 
-func _auto_run_editor_script(code: String) -> void:
-	status_label.text = "GlitchAI  |  Building scene..."
+func _run_autorun_script(code: String) -> void:
+	status_label.text = "GlitchAI  |  Building..."
 
-	var suggested = GlitchAIScriptGen.detect_script_name(code)
-	var script_file = suggested.get_file() if "/" in suggested else suggested
-	var res_path = "res://tools/" + script_file
+	var script = GDScript.new()
+	script.source_code = code
+	var compile_err = script.reload()
 
-	var abs_tools_dir = ProjectSettings.globalize_path("res://tools")
-	DirAccess.make_dir_recursive_absolute(abs_tools_dir)
-
-	var abs_path = abs_tools_dir + "/" + script_file
-	var save_err = GlitchAIScriptGen.save_script(code, abs_path)
-
-	if save_err != OK:
-		_append_message("error", "Failed to save build script to " + res_path)
-		status_label.text = "GlitchAI"
-		return
-
-	if editor_interface_ref:
-		editor_interface_ref.get_resource_filesystem().scan()
-
-	await get_tree().process_frame
-	await get_tree().process_frame
-
-	var script = ResourceLoader.load(res_path, "", ResourceLoader.CACHE_MODE_IGNORE)
-	if script == null or not script is GDScript:
-		_append_message("error", "Could not load build script. Right-click " + res_path + " in FileSystem and click Run manually.")
+	if compile_err != OK:
+		_append_message("error", "Scene build failed — script could not compile. Check the Output panel.")
 		status_label.text = "GlitchAI"
 		return
 
 	var instance = script.new()
 	if not instance.has_method("_run"):
-		_append_message("error", "Build script has no _run() method.")
+		_append_message("error", "Scene build failed — no _run() method found.")
 		status_label.text = "GlitchAI"
 		return
 
@@ -247,7 +246,7 @@ func _auto_run_editor_script(code: String) -> void:
 	if editor_interface_ref:
 		editor_interface_ref.get_resource_filesystem().scan()
 
-	_append_message("system", "Scene built. Open the FileSystem panel and look in the scenes/ folder.")
+	_append_message("system", "Done. Find your new scene in the FileSystem panel.")
 	status_label.text = "GlitchAI"
 
 func _save_last_script() -> void:
@@ -294,6 +293,8 @@ func _clear_chat() -> void:
 
 func _append_message(role: String, text: String) -> void:
 	var clean = text.strip_edges()
+	if clean.is_empty():
+		return
 	match role:
 		"user":
 			chat_output.append_text("\n[color=#7890f8][b]You:[/b][/color] " + clean.xml_escape() + "\n")
