@@ -1,0 +1,12 @@
+{
+  "name": "glitch-engine-api",
+  "version": "1.0.0",
+  "description": "Glitch Engine backend API — AI subscription service",
+  "private": true,
+  "dependencies": {
+    "stripe": "^14.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
