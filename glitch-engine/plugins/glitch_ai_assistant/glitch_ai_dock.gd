@@ -150,6 +150,61 @@ func _save_email() -> void:
 	_show_chat_mode()
 	provider.get_trial_status()
 
+func _on_response(text: String) -> void:
+	text = text.xml_unescape().replace("&qt;", ">").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+	conversation_history.append({"role": "assistant", "content": text})
+
+	# Extract any AUTORUN block before displaying
+	var extracted = _extract_autorun(text)
+	var autorun_code: String = extracted["code"]
+	var display_text: String = extracted["display"]
+
+	# Fallback: detect scene-building code in regular code blocks before printing
+	if autorun_code == "":
+		var scene_code = _detect_scene_build_code(display_text)
+		if scene_code != "":
+			autorun_code = scene_code
+			var regex = RegEx.new()
+			regex.compile("```(?:gdscript|gd)?\\n?[\\s\\S]*?```")
+			var found_block = false
+			for m in regex.search_all(display_text):
+				var block_str = m.get_string()
+				if "func _run" in block_str or ("add_child" in block_str and ".new()" in block_str):
+					display_text = display_text.replace(block_str, "[i](Scene build code executed automatically)[/i]")
+					found_block = true
+			if not found_block:
+				display_text = "[i](Scene build code executed automatically - raw snippet caught)[/i]"
+
+	var scroll_bar = chat_output.get_v_scroll_bar()
+	var scroll_before = scroll_bar.max_value
+	_append_message("assistant", display_text)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	scroll_bar.value = scroll_before
+
+	input_field.editable = true
+	send_button.disabled = false
+	status_label.text = "GlitchAI"
+	input_field.grab_focus()
+
+	# Run scene build script if present
+	if autorun_code != "":
+		_run_autorun_script(autorun_code)
+		provider.get_trial_status()
+		return
+
+	# Otherwise check for regular save-able scripts
+	last_code_blocks = GlitchAIScriptGen.extract_code_blocks(display_text)
+	var gd_blocks = last_code_blocks.filter(func(b): return b["language"] in ["gdscript", "gd", ""])
+	if gd_blocks.size() > 0:
+		var code = gd_blocks[0]["code"]
+		var suggested = GlitchAIScriptGen.detect_script_name(code)
+		save_type_label.text = "Save script:"
+		save_path_field.text = "res://scripts/" + suggested
+		save_script_bar.visible = true
+
+	provider.get_trial_status()
+
 func _on_send(text: String) -> void:
 	text = text.strip_edges()
 	if text.is_empty():
