@@ -1,5 +1,5 @@
 63f7b34db8d8cdea90c76aacccf841ec
-::res://::1780149497
+::res://::1780149849
 ::res://addons/::1780074764
 ::res://addons/glitch_ai_assistant/::1780145688
 glitch_ai_context.gd::GDScript::3403565297717760388::1780146916::0::1::::<>RefCounted<><>0<>1<><>::
@@ -10,11 +10,13 @@ glitch_ai_provider.gd::GDScript::3063097060752617591::1780138974::0::1::::<>Node
 node_templates.gd::GDScript::2365752462253024433::1780145671::0::1::::<>RefCounted<><>0<>1<><>::
 plugin.cfg::TextFile::-1::1780074764::0::1::::<><><>0<>0<><>::
 project_scanner.gd::GDScript::4741174009602269355::1780141343::0::1::::<>RefCounted<><>0<>1<><>::
-scene_builder.gd::GDScript::4651176169876229094::1780149454::0::1::::<>RefCounted<><>0<>1<><>::
+scene_builder.gd::GDScript::4651176169876229094::1780149725::0::1::::<>RefCounted<><>0<>1<><>::
 script_generator.gd::GDScript::4371646663874906470::1780144872::0::1::::<>RefCounted<><>0<>1<><>::
-::res://scenes/::1780148392
+::res://scenes/::1780150054
 main.tscn::PackedScene::-1::1780148392::0::1::::<><><>0<>0<><>::
-::res://scripts/::1780141894
+open_world.tscn::PackedScene::-1::1780150054::0::1::::<><><>0<>0<><>::
+::res://scripts/::1780150294
+new_script.gd::GDScript::3788880382773897115::1780150294::0::1::::<>RefCounted<><>0<>1<><>::
 ::res://scripts/npc/::1780141921
 npc_base.gd::GDScript::6664481477575386686::1780141894::0::1::::<>CharacterBody3D<><>0<>0<><>::
 ::res://scripts/player/::1780141921

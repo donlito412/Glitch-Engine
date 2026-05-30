@@ -1,0 +1,30 @@
+[gd_scene format=3]
+
+[node name="OpenWorld" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-52, 35, 0)
+light_energy = 1.3
+shadow_enabled = true
+
+[node name="Ground" type="StaticBody3D" parent="."]
+
+[node name="GroundMesh" type="MeshInstance3D" parent="Ground"]
+mesh = BoxMesh
+size = Vector3(200, 1, 200)
+
+[node name="GroundCollision" type="CollisionShape3D" parent="Ground"]
+shape = BoxShape3D
+size = Vector3(200, 1, 200)
+
+[node name="PlayerSpawn" type="Marker3D" parent="."]
+position = Vector3(0, 1, 0)
+
+[node name="CameraArm" type="SpringArm3D" parent="."]
+spring_length = 6.0
+rotation_degrees = Vector3(-20, 0, 0)
+
+[node name="Camera3D" type="Camera3D" parent="CameraArm"]
+fov = 75.0
