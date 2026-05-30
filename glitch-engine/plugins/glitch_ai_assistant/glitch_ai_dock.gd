@@ -275,8 +275,6 @@ func _run_autorun_script(code: String) -> void:
 	status_label.text = "GlitchAI  |  Building..."
 
 	var clean_code = code.strip_edges()
-
-	# Strip code fences if AI included them inside AUTORUN tags
 	if clean_code.begins_with("```"):
 		var first_newline = clean_code.find("\n")
 		if first_newline != -1:
@@ -286,29 +284,16 @@ func _run_autorun_script(code: String) -> void:
 			clean_code = clean_code.left(clean_code.length() - 3)
 		clean_code = clean_code.strip_edges()
 
-	# Strip @tool decorator — not needed for dynamic execution
-	if clean_code.begins_with("@tool"):
-		var newline = clean_code.find("\n")
-		if newline != -1:
-			clean_code = clean_code.substr(newline + 1).strip_edges()
-
-	# Replace EditorScript with RefCounted — EditorScript can't be instantiated dynamically
-	clean_code = clean_code.replace("extends EditorScript", "extends RefCounted")
-
-	# Ensure the script extends something
-	if not clean_code.begins_with("extends"):
-		clean_code = "extends RefCounted\n\n" + clean_code
-
-	var script = GDScript.new()
-	script.source_code = clean_code
-	var compile_err = script.reload()
+	var memory_script = GDScript.new()
+	memory_script.source_code = clean_code
+	var compile_err = memory_script.reload()
 
 	if compile_err != OK:
-		_append_message("error", "Scene build failed — script could not compile. Check the Output panel for details.")
+		_append_message("error", "Scene build failed — script could not compile. Error code: " + str(compile_err))
 		status_label.text = "GlitchAI"
 		return
 
-	var instance = script.new()
+	var instance = memory_script.new()
 	if not instance.has_method("_run"):
 		_append_message("error", "Scene build failed — no _run() method found in the generated script.")
 		status_label.text = "GlitchAI"
