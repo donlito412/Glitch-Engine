@@ -57,6 +57,12 @@ func _build_ui() -> void:
 	subscribe_button.pressed.connect(_on_subscribe_pressed)
 	top_bar.add_child(subscribe_button)
 
+	var scan_btn = Button.new()
+	scan_btn.text = "🔍 Scan Project"
+	scan_btn.tooltip_text = "Scan project files so GlitchAI knows your full project"
+	scan_btn.pressed.connect(_scan_project)
+	top_bar.add_child(scan_btn)
+
 	var clear_btn = Button.new()
 	clear_btn.text = "🗑"
 	clear_btn.pressed.connect(_clear_chat)
@@ -214,6 +220,17 @@ func _on_subscribe_pressed() -> void:
 func _on_subscribe_url(url: String) -> void:
 	OS.shell_open(url)
 	status_label.text = "🤖 GlitchAI  |  Checkout opened in browser"
+
+func _scan_project() -> void:
+	status_label.text = "🤖 GlitchAI  |  Scanning project..."
+	if editor_interface:
+		var GlitchAIScanner = load("res://addons/glitch_ai_assistant/project_scanner.gd")
+		var scan = GlitchAIScanner.scan_project(editor_interface)
+		var scripts = scan.get("scripts", [])
+		var scenes = scan.get("scenes", [])
+		var assets = scan.get("assets", [])
+		_append_message("system", "✅ Project scanned: %d scripts, %d scenes, %d assets found. GlitchAI now knows your full project." % [scripts.size(), scenes.size(), assets.size()])
+	status_label.text = "🤖 GlitchAI"
 
 func _clear_chat() -> void:
 	chat_output.clear()
