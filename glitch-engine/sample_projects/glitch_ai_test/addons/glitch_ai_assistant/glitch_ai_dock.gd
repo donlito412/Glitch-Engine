@@ -185,6 +185,14 @@ func _extract_autorun(text: String) -> Dictionary:
 	var display = (text.left(start) + text.substr(end + end_tag.length())).strip_edges()
 	return {"code": code, "display": display}
 
+func _detect_scene_build_code(text: String) -> String:
+	var blocks = GlitchAIScriptGen.extract_code_blocks(text)
+	for block in blocks:
+		var code: String = block["code"]
+		if ("ResourceSaver.save" in code or "PackedScene" in code) and "func _run" in code:
+			return code
+	return ""
+
 func _on_response(text: String) -> void:
 	conversation_history.append({"role": "assistant", "content": text})
 
@@ -211,6 +219,13 @@ func _on_response(text: String) -> void:
 		provider.get_trial_status()
 		return
 
+	# Fallback: detect scene-building code in regular code blocks
+	var scene_code = _detect_scene_build_code(display_text)
+	if scene_code != "":
+		_run_autorun_script(scene_code)
+		provider.get_trial_status()
+		return
+
 	# Otherwise check for regular save-able scripts
 	last_code_blocks = GlitchAIScriptGen.extract_code_blocks(display_text)
 	var gd_blocks = last_code_blocks.filter(func(b): return b["language"] in ["gdscript", "gd", ""])
@@ -226,14 +241,28 @@ func _on_response(text: String) -> void:
 func _run_autorun_script(code: String) -> void:
 	status_label.text = "GlitchAI  |  Building..."
 
-	# Strip @tool decorator if present — not needed for dynamic execution
 	var clean_code = code.strip_edges()
+
+	# Strip code fences if AI included them inside AUTORUN tags
+	if clean_code.begins_with("```"):
+		var first_newline = clean_code.find("\n")
+		if first_newline != -1:
+			clean_code = clean_code.substr(first_newline + 1)
+		if clean_code.strip_edges().ends_with("```"):
+			clean_code = clean_code.strip_edges()
+			clean_code = clean_code.left(clean_code.length() - 3)
+		clean_code = clean_code.strip_edges()
+
+	# Strip @tool decorator — not needed for dynamic execution
 	if clean_code.begins_with("@tool"):
 		var newline = clean_code.find("\n")
 		if newline != -1:
 			clean_code = clean_code.substr(newline + 1).strip_edges()
 
-	# Ensure the script extends RefCounted so script.new() works safely
+	# Replace EditorScript with RefCounted — EditorScript can't be instantiated dynamically
+	clean_code = clean_code.replace("extends EditorScript", "extends RefCounted")
+
+	# Ensure the script extends something
 	if not clean_code.begins_with("extends"):
 		clean_code = "extends RefCounted\n\n" + clean_code
 
@@ -257,7 +286,7 @@ func _run_autorun_script(code: String) -> void:
 	if editor_interface_ref:
 		editor_interface_ref.get_resource_filesystem().scan()
 
-	_append_message("system", "Done. Find your new scene in the FileSystem panel.")
+	_append_message("system", "Scene built. Check the FileSystem panel.")
 	status_label.text = "GlitchAI"
 
 func _save_last_script() -> void:
