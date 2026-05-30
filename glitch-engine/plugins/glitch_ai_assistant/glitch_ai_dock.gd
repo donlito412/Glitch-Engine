@@ -202,6 +202,17 @@ func _on_response(text: String) -> void:
 	var autorun_code: String = extracted["code"]
 	var display_text: String = extracted["display"]
 
+	# Fallback: detect scene-building code in regular code blocks before printing
+	if autorun_code == "":
+		var scene_code = _detect_scene_build_code(display_text)
+		if scene_code != "":
+			autorun_code = scene_code
+			var regex = RegEx.new()
+			regex.compile("```(?:gdscript|gd)?\\n?[\\s\\S]*?```")
+			for m in regex.search_all(display_text):
+				if "func _run" in m.get_string():
+					display_text = display_text.replace(m.get_string(), "[i](Scene build code executed automatically)[/i]")
+
 	var scroll_bar = chat_output.get_v_scroll_bar()
 	var scroll_before = scroll_bar.max_value
 	_append_message("assistant", display_text)
@@ -217,13 +228,6 @@ func _on_response(text: String) -> void:
 	# Run scene build script if present
 	if autorun_code != "":
 		_run_autorun_script(autorun_code)
-		provider.get_trial_status()
-		return
-
-	# Fallback: detect scene-building code in regular code blocks
-	var scene_code = _detect_scene_build_code(display_text)
-	if scene_code != "":
-		_run_autorun_script(scene_code)
 		provider.get_trial_status()
 		return
 
