@@ -76,7 +76,7 @@ func _build_ui() -> void:
 	# Chat output
 	chat_output = RichTextLabel.new()
 	chat_output.bbcode_enabled = true
-	chat_output.scroll_following = true
+	chat_output.scroll_following = false
 	chat_output.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	chat_output.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vbox.add_child(chat_output)
@@ -177,7 +177,15 @@ func _on_send(text: String) -> void:
 
 func _on_response(text: String) -> void:
 	conversation_history.append({"role": "assistant", "content": text})
+	# Record scroll position before adding new message
+	# so we scroll to the START of the response, not the end
+	var scroll_bar = chat_output.get_v_scroll_bar()
+	var scroll_before = scroll_bar.max_value
 	_append_message("assistant", text)
+	# Wait two frames for RichTextLabel to layout new content
+	await get_tree().process_frame
+	await get_tree().process_frame
+	scroll_bar.value = scroll_before
 	input_field.editable = true
 	send_button.disabled = false
 	status_label.text = "GlitchAI"
