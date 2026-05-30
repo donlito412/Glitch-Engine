@@ -290,6 +290,14 @@ func _run_autorun_script(code: String) -> void:
 			clean_code = clean_code.left(clean_code.length() - 3)
 		clean_code = clean_code.strip_edges()
 
+	if "[AUTORUN]" in clean_code:
+		var start_idx = clean_code.find("[AUTORUN]") + 9
+		var end_idx = clean_code.find("[/AUTORUN]")
+		if end_idx != -1:
+			clean_code = clean_code.substr(start_idx, end_idx - start_idx).strip_edges()
+		else:
+			clean_code = clean_code.substr(start_idx).strip_edges()
+
 	if clean_code.begins_with("@tool"):
 		var newline = clean_code.find("\n")
 		if newline != -1:
@@ -305,7 +313,8 @@ func _run_autorun_script(code: String) -> void:
 	var compile_err = memory_script.reload()
 
 	if compile_err != OK:
-		_append_message("error", "Scene build failed — script could not compile. Error code: " + str(compile_err) + "\n\n[color=#a0a0a0]Code that failed:[/color]\n[bgcolor=#1a1a2e][color=#d0d0ff]" + clean_code.xml_escape() + "[/color][/bgcolor]")
+		var display_code = clean_code.replace("[", "[lb]")
+		_append_message("error", "Scene build failed — script could not compile. Error code: " + str(compile_err) + "\n\n[color=#a0a0a0]Code that failed:[/color]\n[bgcolor=#1a1a2e][color=#d0d0ff]" + display_code + "[/color][/bgcolor]")
 		status_label.text = "GlitchAI"
 		return
 
