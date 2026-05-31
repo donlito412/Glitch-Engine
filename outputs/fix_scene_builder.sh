@@ -1,3 +1,12 @@
+#!/bin/bash
+# fix_scene_builder.sh
+# Syncs glitch_ai_dock.gd to both locations, pushes to GitHub, and automatically restarts Godot to clear script caches
+
+# ALWAYS navigate to the absolute project root first so this script works from anywhere
+cd "/Volumes/Lito's Hard Drive/Murphree Enterprises/Glitch-Engine" || exit
+
+echo "Writing glitch_ai_dock.gd to source plugin location..."
+cat << 'EOF' > "glitch-engine/plugins/glitch_ai_assistant/glitch_ai_dock.gd"
 @tool
 extends Control
 
@@ -174,25 +183,15 @@ func _on_send(text: String) -> void:
 
 	provider.send_message(system_prompt, conversation_history)
 
-# Extracts code between [AUTORUN] and [/AUTORUN].
-# If closing tag is missing, grabs everything after [AUTORUN].
 func _extract_autorun(text: String) -> Dictionary:
 	var start_tag = "[AUTORUN]"
 	var end_tag = "[/AUTORUN]"
 	var start = text.find(start_tag)
-	if start == -1:
-		return {"code": "", "display": text}
-	var code_start = start + start_tag.length()
 	var end = text.find(end_tag)
-	var code: String
-	var display: String
-	if end != -1:
-		code = text.substr(code_start, end - code_start).strip_edges()
-		display = (text.left(start) + text.substr(end + end_tag.length())).strip_edges()
-	else:
-		# No closing tag — grab everything after [AUTORUN] as code
-		code = text.substr(code_start).strip_edges()
-		display = text.left(start).strip_edges()
+	if start == -1 or end == -1:
+		return {"code": "", "display": text}
+	var code = text.substr(start + start_tag.length(), end - start - start_tag.length()).strip_edges()
+	var display = (text.left(start) + text.substr(end + end_tag.length())).strip_edges()
 	return {"code": code, "display": display}
 
 func _detect_scene_build_code(text: String) -> String:
@@ -201,7 +200,8 @@ func _detect_scene_build_code(text: String) -> String:
 		var code: String = block["code"]
 		if "func _run" in code:
 			return code
-		if "add_child" in code and ".new()" in code and "ResourceSaver" in code:
+			
+		if "add_child" in code and ".new()" in code:
 			var wrapped = "extends RefCounted\nfunc _run() -> void:\n"
 			var lines = code.split("\n")
 			var has_root = false
@@ -211,24 +211,37 @@ func _detect_scene_build_code(text: String) -> String:
 					continue
 				if "var root " in line or "var root=" in line or "var root:" in line:
 					has_root = true
+					
 			if not has_root:
 				wrapped += "\tvar root = Node3D.new()\n\troot.name = \"GeneratedScene\"\n"
+				
 			for line in lines:
 				var trimmed = line.strip_edges()
 				if trimmed.begins_with("extends ") or trimmed.begins_with("func ") or trimmed.begins_with("@tool"):
 					continue
 				wrapped += "\t" + line + "\n"
+				
+			if not "ResourceSaver.save" in code:
+				wrapped += "\n\tvar scene = PackedScene.new()\n\tscene.pack(root)\n\tDirAccess.make_dir_recursive_absolute(\"res://scenes/ai_generated\")\n\tResourceSaver.save(scene, \"res://scenes/ai_generated/ai_scene.tscn\")\n"
+				
 			return wrapped
+			
+	var clean = text.strip_edges()
+	if "func _run" in clean:
+		return clean
+		
 	return ""
 
 func _on_response(text: String) -> void:
 	text = text.xml_unescape().replace("&qt;", ">").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
 	conversation_history.append({"role": "assistant", "content": text})
 
+	# Extract any AUTORUN block before displaying
 	var extracted = _extract_autorun(text)
 	var autorun_code: String = extracted["code"]
 	var display_text: String = extracted["display"]
 
+	# Fallback: detect scene-building code in regular code blocks before printing
 	if autorun_code == "":
 		var scene_code = _detect_scene_build_code(display_text)
 		if scene_code != "":
@@ -238,14 +251,11 @@ func _on_response(text: String) -> void:
 			var found_block = false
 			for m in regex.search_all(display_text):
 				var block_str = m.get_string()
-				if "func _run" in block_str or ("add_child" in block_str and "ResourceSaver" in block_str):
-					display_text = display_text.replace(block_str, "[i](Building scene...)[/i]")
+				if "func _run" in block_str or ("add_child" in block_str and ".new()" in block_str):
+					display_text = display_text.replace(block_str, "[i](Scene build code executed automatically)[/i]")
 					found_block = true
 			if not found_block:
-				display_text = "[i](Building scene...)[/i]"
-
-	if display_text.is_empty():
-		display_text = "[i](Building scene...)[/i]"
+				display_text = "[i](Scene build code executed automatically - raw snippet caught)[/i]"
 
 	var scroll_bar = chat_output.get_v_scroll_bar()
 	var scroll_before = scroll_bar.max_value
@@ -259,11 +269,13 @@ func _on_response(text: String) -> void:
 	status_label.text = "GlitchAI"
 	input_field.grab_focus()
 
+	# Run scene build script if present
 	if autorun_code != "":
-		await _run_autorun_script(autorun_code)
+		_run_autorun_script(autorun_code)
 		provider.get_trial_status()
 		return
 
+	# Otherwise check for regular save-able scripts
 	last_code_blocks = GlitchAIScriptGen.extract_code_blocks(display_text)
 	var gd_blocks = last_code_blocks.filter(func(b): return b["language"] in ["gdscript", "gd", ""])
 	if gd_blocks.size() > 0:
@@ -275,82 +287,50 @@ func _on_response(text: String) -> void:
 
 	provider.get_trial_status()
 
-func _collect_scene_paths(base: String, result: Array) -> void:
-	var dir = DirAccess.open(base)
-	if dir == null:
-		return
-	dir.list_dir_begin()
-	var name = dir.get_next()
-	while name != "":
-		if dir.current_is_dir() and name != "." and name != "..":
-			_collect_scene_paths(base + "/" + name, result)
-		elif name.ends_with(".tscn"):
-			result.append(base + "/" + name)
-		name = dir.get_next()
-	dir.list_dir_end()
-
 func _run_autorun_script(code: String) -> void:
 	status_label.text = "GlitchAI  |  Building..."
 
 	var clean_code = code.strip_edges()
-
-	# Strip markdown code fences if present
 	if clean_code.begins_with("```"):
 		var first_newline = clean_code.find("\n")
 		if first_newline != -1:
 			clean_code = clean_code.substr(first_newline + 1)
+		if clean_code.strip_edges().ends_with("```"):
+			clean_code = clean_code.strip_edges()
+			clean_code = clean_code.left(clean_code.length() - 3)
 		clean_code = clean_code.strip_edges()
-		if clean_code.ends_with("```"):
-			clean_code = clean_code.left(clean_code.length() - 3).strip_edges()
 
-	# Strip nested AUTORUN tags if present
 	if "[AUTORUN]" in clean_code:
-		var s = clean_code.find("[AUTORUN]") + 9
-		var e = clean_code.find("[/AUTORUN]")
-		if e != -1:
-			clean_code = clean_code.substr(s, e - s).strip_edges()
+		var start_idx = clean_code.find("[AUTORUN]") + 9
+		var end_idx = clean_code.find("[/AUTORUN]")
+		if end_idx != -1:
+			clean_code = clean_code.substr(start_idx, end_idx - start_idx).strip_edges()
 		else:
-			clean_code = clean_code.substr(s).strip_edges()
+			clean_code = clean_code.substr(start_idx).strip_edges()
 
-	# Strip @tool decorator
 	if clean_code.begins_with("@tool"):
-		var nl = clean_code.find("\n")
-		if nl != -1:
-			clean_code = clean_code.substr(nl + 1).strip_edges()
+		var newline = clean_code.find("\n")
+		if newline != -1:
+			clean_code = clean_code.substr(newline + 1).strip_edges()
 
-	# Replace EditorScript with RefCounted
 	clean_code = clean_code.replace("extends EditorScript", "extends RefCounted")
 
-	# Add extends if missing
 	if not clean_code.begins_with("extends"):
 		clean_code = "extends RefCounted\n\n" + clean_code
 
-	# Normalize indentation: convert 4-space indents to tabs
-	var norm_lines: PackedStringArray = []
-	for line in clean_code.split("\n"):
-		var result_line = line
-		while result_line.begins_with("    "):
-			result_line = "\t" + result_line.substr(4)
-		norm_lines.append(result_line)
-	clean_code = "\n".join(norm_lines)
-
-	# Snapshot existing scenes before build
-	var scenes_before: Array = []
-	_collect_scene_paths("res://scenes", scenes_before)
-
-	var script = GDScript.new()
-	script.source_code = clean_code
-	var compile_err = script.reload()
+	var memory_script = GDScript.new()
+	memory_script.source_code = clean_code
+	var compile_err = memory_script.reload()
 
 	if compile_err != OK:
 		var display_code = clean_code.replace("[", "[lb]")
-		_append_message("error", "Scene build failed — compile error " + str(compile_err) + ". Check Output panel.\n\n[color=#a0a0a0]Code:[/color]\n[bgcolor=#1a1a2e][color=#d0d0ff]" + display_code + "[/color][/bgcolor]")
+		_append_message("error", "Scene build failed — script could not compile. Error code: " + str(compile_err) + "\n\n[color=#a0a0a0]Code that failed:[/color]\n[bgcolor=#1a1a2e][color=#d0d0ff]" + display_code + "[/color][/bgcolor]")
 		status_label.text = "GlitchAI"
 		return
 
-	var instance = script.new()
+	var instance = memory_script.new()
 	if not instance.has_method("_run"):
-		_append_message("error", "Scene build failed — no _run() method found.")
+		_append_message("error", "Scene build failed — no _run() method found in the generated script.")
 		status_label.text = "GlitchAI"
 		return
 
@@ -358,26 +338,8 @@ func _run_autorun_script(code: String) -> void:
 
 	if editor_interface_ref:
 		editor_interface_ref.get_resource_filesystem().scan()
-		await get_tree().process_frame
-		await get_tree().process_frame
 
-		var scenes_after: Array = []
-		_collect_scene_paths("res://scenes", scenes_after)
-
-		var new_scene = ""
-		for p in scenes_after:
-			if p not in scenes_before:
-				new_scene = p
-				break
-
-		if new_scene != "":
-			editor_interface_ref.open_scene_from_path(new_scene)
-			_append_message("system", "Scene built and opened: " + new_scene)
-		else:
-			_append_message("system", "Scene built. Check the FileSystem panel.")
-	else:
-		_append_message("system", "Scene built. Check the FileSystem panel.")
-
+	_append_message("system", "Scene built. Check the FileSystem panel.")
 	status_label.text = "GlitchAI"
 
 func _save_last_script() -> void:
@@ -448,3 +410,21 @@ func _format_response(text: String) -> String:
 	for m in bold_regex.search_all(text):
 		result = result.replace(m.get_string(), "[b]" + m.get_string(1) + "[/b]")
 	return result
+EOF
+
+echo "Syncing glitch_ai_dock.gd to live test project location..."
+cp "glitch-engine/plugins/glitch_ai_assistant/glitch_ai_dock.gd" "glitch-engine/sample_projects/glitch_ai_test/addons/glitch_ai_assistant/glitch_ai_dock.gd"
+
+echo "Staging and committing to GitHub..."
+git add glitch-engine/plugins/glitch_ai_assistant/glitch_ai_dock.gd
+git add glitch-engine/sample_projects/glitch_ai_test/addons/glitch_ai_assistant/glitch_ai_dock.gd
+git commit -m "Fix scene builder dock autorun and fallback logic"
+git push
+
+echo "Restarting Godot Engine to clear script caches..."
+pkill -f "godot.macos.editor" 2>/dev/null || echo "Godot not running."
+
+# Open Godot again pointing to the test project
+"/Volumes/Lito's Hard Drive/Murphree Enterprises/Glitch-Engine/godot-source/bin/godot.macos.editor.arm64" --editor "/Volumes/Lito's Hard Drive/Murphree Enterprises/Glitch-Engine/glitch-engine/sample_projects/glitch_ai_test/project.godot" &
+
+echo "Done."
