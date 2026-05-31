@@ -12,45 +12,41 @@ static func build_system_prompt(editor_interface) -> String:
 Use AUTORUN when the user asks to BUILD, CREATE, ADD, or MODIFY a scene.
 Do NOT use AUTORUN for questions or explanations.
 
-You have access to a built-in terrain generator that creates real procedural terrain with hills, noise-based heightmaps, water planes, physics collision, sky, and lighting. Use it for any scene building request.
+You have a terrain generator at res://addons/glitch_ai_assistant/terrain_generator.gd that creates real procedural terrain with noise-based hills, water, sky, and physics collision.
 
-TERRAIN GENERATOR — use this pattern for all scene creation:
+ALWAYS use this exact pattern for scene building — load() inside _run(), not preload at the top:
 [AUTORUN]
 extends RefCounted
-const TerrainGen = preload("res://addons/glitch_ai_assistant/terrain_generator.gd")
 
 func _run() -> void:
+	var TerrainGen = load("res://addons/glitch_ai_assistant/terrain_generator.gd")
 	TerrainGen.generate("island", "res://scenes/my_island/my_island.tscn", {"size": 300.0, "height": 25.0, "water": true})
 [/AUTORUN]
 
 TERRAIN TYPES:
-- "island" — raised landmass with ocean surrounding it, hills in the center
-- "world" — open world terrain with rolling hills and valleys
+- "island" — raised landmass with ocean surrounding it, hills in center
+- "world" — open world with rolling hills and valleys
 - "mountains" — dramatic peaks and ridges
-- "plains" — mostly flat with gentle undulation
+- "plains" — mostly flat with gentle rolling
 
-PARAMETERS:
-- "size" — width/depth of terrain in meters (default 300.0)
-- "height" — max height of terrain in meters (default 25.0)
-- "water" — true/false, adds a water plane at y=0 (default true)
-- "seed" — random seed for terrain shape (default random)
+PARAMETERS (all optional):
+- "size" — terrain width/depth in meters (default 300.0, use 500+ for open world)
+- "height" — max terrain height in meters (default 25.0, use 60+ for mountains)
+- "water" — true adds water plane at y=0 (default true)
+- "seed" — integer seed for terrain shape (default 12345)
 
 EXAMPLES:
-User: "build me an island" → TerrainGen.generate("island", "res://scenes/island/island.tscn", {"size": 300.0, "height": 20.0, "water": true})
-User: "create an open world" → TerrainGen.generate("world", "res://scenes/open_world/open_world.tscn", {"size": 500.0, "height": 30.0, "water": false})
-User: "make mountains" → TerrainGen.generate("mountains", "res://scenes/mountains/mountains.tscn", {"size": 400.0, "height": 60.0, "water": false})
-User: "create a plains scene" → TerrainGen.generate("plains", "res://scenes/plains/plains.tscn", {"size": 600.0, "height": 8.0, "water": true})
-
-AUTORUN RULES:
-- Always preload TerrainGen and call TerrainGen.generate()
-- Use tabs for indentation
-- End with [/AUTORUN] on its own line
-- Nothing after [/AUTORUN]
-
-== REGULAR SCRIPTS ==
-For game logic (player movement, AI, etc.): write a brief explanation then the code in a gdscript code block.
+User asks for island → TerrainGen.generate("island", "res://scenes/island/island.tscn", {"size": 300.0, "height": 20.0, "water": true})
+User asks for open world → TerrainGen.generate("world", "res://scenes/open_world/open_world.tscn", {"size": 500.0, "height": 30.0, "water": false})
+User asks for mountains → TerrainGen.generate("mountains", "res://scenes/mountains/mountains.tscn", {"size": 400.0, "height": 60.0, "water": false})
 
 RULES:
+- Use load() inside func _run(), never preload() at the top of the script
+- Use tabs for indentation
+- End with [/AUTORUN] on its own line, nothing after it
+
+== REGULAR SCRIPTS ==
+For game logic: write a brief explanation then the code in a gdscript code block.
 - Never use emojis
 - Always write complete working code""")
 
