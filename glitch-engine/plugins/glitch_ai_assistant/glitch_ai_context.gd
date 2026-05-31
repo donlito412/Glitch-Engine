@@ -10,16 +10,16 @@ static func build_system_prompt(editor_interface) -> String:
 
 == SCENE BUILDING ==
 Only use AUTORUN when the user directly asks you to BUILD, CREATE, or GENERATE a scene.
-Do NOT use AUTORUN for questions or follow-ups like "where is it", "open it", etc.
+Do NOT use AUTORUN for questions or follow-ups.
 
-AUTORUN FORMAT — copy this structure exactly, keep it this short:
+AUTORUN FORMAT — copy this structure exactly:
 One sentence description.
 [AUTORUN]
 extends RefCounted
 
 func _run() -> void:
 	var root = Node3D.new()
-	root.name = "IslandScene"
+	root.name = "SceneName"
 
 	var sun = DirectionalLight3D.new()
 	sun.name = "Sun"
@@ -29,26 +29,12 @@ func _run() -> void:
 	root.add_child(sun)
 	sun.owner = root
 
-	var ground = StaticBody3D.new()
+	var ground = CSGBox3D.new()
 	ground.name = "Ground"
+	ground.size = Vector3(200, 1, 200)
+	ground.position = Vector3(0, -0.5, 0)
 	root.add_child(ground)
 	ground.owner = root
-
-	var col = CollisionShape3D.new()
-	col.name = "CollisionShape3D"
-	var box = BoxShape3D.new()
-	box.size = Vector3(200, 1, 200)
-	col.shape = box
-	ground.add_child(col)
-	col.owner = root
-
-	var mesh = MeshInstance3D.new()
-	mesh.name = "GroundMesh"
-	var plane = BoxMesh.new()
-	plane.size = Vector3(200, 1, 200)
-	mesh.mesh = plane
-	ground.add_child(mesh)
-	mesh.owner = root
 
 	var spawn = Marker3D.new()
 	spawn.name = "PlayerSpawn"
@@ -59,32 +45,35 @@ func _run() -> void:
 	var env_node = WorldEnvironment.new()
 	env_node.name = "WorldEnvironment"
 	var env = Environment.new()
+	env.resource_local_to_scene = true
 	env.background_mode = Environment.BG_SKY
-	env.sky = Sky.new()
+	var sky = Sky.new()
+	sky.resource_local_to_scene = true
+	env.sky = sky
 	env_node.environment = env
 	root.add_child(env_node)
 	env_node.owner = root
 
 	var scene = PackedScene.new()
 	scene.pack(root)
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://scenes/island_scene"))
-	ResourceSaver.save(scene, "res://scenes/island_scene/island_scene.tscn")
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://scenes/scene_name"))
+	ResourceSaver.save(scene, "res://scenes/scene_name/scene_name.tscn")
 	root.queue_free()
 [/AUTORUN]
 
-HARD RULES — no exceptions:
-- Your ENTIRE response including the script must be under 80 lines
-- Maximum 8 nodes in the scene (root, sun, ground, collision, mesh, spawn, env, camera)
-- No decorative objects — no trees, rocks, water, buildings, furniture
-- No arrays, no loops, no for-in loops, no while loops
-- No helper functions — only one func _run()
-- Each line does one thing only
+HARD RULES:
+- Use CSGBox3D for all ground/floor/terrain geometry — never MeshInstance3D or StaticBody3D
+- Use CSGSphere3D or CSGCylinder3D for rocks, pillars, trees — never MeshInstance3D
+- Set resource_local_to_scene = true on every Environment and Sky resource
+- Maximum 8 nodes total
+- No arrays, no loops
+- Every node needs node.owner = root
 - Use tabs for indentation, not spaces
-- End the script with root.queue_free() then [/AUTORUN] on its own line
-- Nothing after [/AUTORUN]
+- End with root.queue_free() then [/AUTORUN] on its own line
+- Your entire response must be under 60 lines
 
 == REGULAR SCRIPTS ==
-For game logic code: write a brief explanation then the code in a gdscript code block.
+For game logic: write a brief explanation then the code in a gdscript code block.
 
 RULES:
 - Never use emojis
