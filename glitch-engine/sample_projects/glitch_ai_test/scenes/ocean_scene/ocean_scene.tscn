@@ -1,0 +1,41 @@
+[gd_scene format=3 uid="uid://crt18rdrxbotd"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cpoor"]
+transparency = 1
+albedo_color = Color(0, 0.35, 0.7, 0.85)
+metallic = 0.3
+roughness = 0.1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_7lkkv"]
+albedo_color = Color(0.3, 0.6, 0.2, 1)
+roughness = 0.9
+
+[sub_resource type="Sky" id="Sky_jxkhq"]
+resource_local_to_scene = true
+
+[sub_resource type="Environment" id="Environment_m5r58"]
+resource_local_to_scene = true
+background_mode = 2
+sky = SubResource("Sky_jxkhq")
+
+[node name="OceanScene" type="Node3D" unique_id=1312871492]
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=983447767]
+transform = Transform3D(0.8660254, -0.35355338, 0.35355338, 0, 0.70710677, 0.70710677, -0.5, -0.6123724, 0.6123724, 0, 0, 0)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="Ocean" type="CSGBox3D" parent="." unique_id=1895288392]
+material_override = SubResource("StandardMaterial3D_cpoor")
+size = Vector3(500, 0.5, 500)
+
+[node name="Land" type="CSGBox3D" parent="." unique_id=1082701064]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+material_override = SubResource("StandardMaterial3D_7lkkv")
+size = Vector3(80, 4, 80)
+
+[node name="PlayerSpawn" type="Marker3D" parent="." unique_id=98648942]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 0)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1231966730]
+environment = SubResource("Environment_m5r58")
