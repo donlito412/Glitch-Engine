@@ -309,6 +309,28 @@ func _run_autorun_script(code: String) -> void:
 	if not clean_code.begins_with("extends"):
 		clean_code = "extends RefCounted\n\n" + clean_code
 
+	# Normalize indentation: convert spaces to tabs so GDScript parser doesn't choke
+	var normalized_lines: PackedStringArray = []
+	for line in clean_code.split("\n"):
+		var stripped = line.lstrip(" \t")
+		var indent_str = line.left(line.length() - stripped.length())
+		var tab_count = 0
+		var i = 0
+		while i < indent_str.length():
+			if indent_str[i] == "\t":
+				tab_count += 1
+				i += 1
+			else:
+				# Count spaces and convert groups of 4 (or 2) to tabs
+				var space_run = 0
+				while i < indent_str.length() and indent_str[i] == " ":
+					space_run += 1
+					i += 1
+				var spaces_per_tab = 4 if space_run % 4 == 0 else 2
+				tab_count += space_run / spaces_per_tab
+		normalized_lines.append("\t".repeat(tab_count) + stripped)
+	clean_code = "\n".join(normalized_lines)
+
 	var memory_script = GDScript.new()
 	memory_script.source_code = clean_code
 	var compile_err = memory_script.reload()
