@@ -49,7 +49,7 @@ static func _build_environment() -> Environment:
 	sky_mat.ground_curve = 0.06
 	sky_mat.sun_angle_max = 8.0
 	sky_mat.sun_curve = 0.05
-	sky_mat.sun_energy = 22.0
+	sky_mat.sky_energy_multiplier = 1.4
 
 	var sky_res = Sky.new()
 	sky_res.sky_material = sky_mat
