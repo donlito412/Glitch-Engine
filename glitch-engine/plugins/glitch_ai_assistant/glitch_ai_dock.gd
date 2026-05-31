@@ -174,8 +174,6 @@ func _on_send(text: String) -> void:
 
 	provider.send_message(system_prompt, conversation_history)
 
-# Extracts code between [AUTORUN] and [/AUTORUN].
-# If closing tag is missing, grabs everything after [AUTORUN].
 func _extract_autorun(text: String) -> Dictionary:
 	var start_tag = "[AUTORUN]"
 	var end_tag = "[/AUTORUN]"
@@ -190,7 +188,6 @@ func _extract_autorun(text: String) -> Dictionary:
 		code = text.substr(code_start, end - code_start).strip_edges()
 		display = (text.left(start) + text.substr(end + end_tag.length())).strip_edges()
 	else:
-		# No closing tag — grab everything after [AUTORUN] as code
 		code = text.substr(code_start).strip_edges()
 		display = text.left(start).strip_edges()
 	return {"code": code, "display": display}
@@ -289,6 +286,31 @@ func _collect_scene_paths(base: String, result: Array) -> void:
 		name = dir.get_next()
 	dir.list_dir_end()
 
+func _normalize_indent(code: String) -> String:
+	var norm: PackedStringArray = []
+	for line in code.split("\n"):
+		if line.strip_edges().is_empty():
+			norm.append("")
+			continue
+		var stripped = line.lstrip(" \t")
+		var indent = line.left(line.length() - stripped.length())
+		var depth = 0
+		var i = 0
+		while i < indent.length():
+			if indent[i] == "\t":
+				depth += 1
+				i += 1
+			elif i + 3 < indent.length() and indent.substr(i, 4) == "    ":
+				depth += 1
+				i += 4
+			elif i + 1 < indent.length() and indent.substr(i, 2) == "  ":
+				depth += 1
+				i += 2
+			else:
+				i += 1
+		norm.append("\t".repeat(depth) + stripped)
+	return "\n".join(norm)
+
 func _run_autorun_script(code: String) -> void:
 	status_label.text = "GlitchAI  |  Building..."
 
@@ -325,14 +347,11 @@ func _run_autorun_script(code: String) -> void:
 	if not clean_code.begins_with("extends"):
 		clean_code = "extends RefCounted\n\n" + clean_code
 
-	# Normalize indentation: convert 4-space indents to tabs
-	var norm_lines: PackedStringArray = []
-	for line in clean_code.split("\n"):
-		var result_line = line
-		while result_line.begins_with("    "):
-			result_line = "\t" + result_line.substr(4)
-		norm_lines.append(result_line)
-	clean_code = "\n".join(norm_lines)
+	# Normalize indentation (handles 2-space, 4-space, tabs, or mixed)
+	clean_code = _normalize_indent(clean_code)
+
+	# Print to Output panel so we can see exactly what is being compiled
+	print("[GlitchAI] Compiling scene script:\n", clean_code)
 
 	# Snapshot existing scenes before build
 	var scenes_before: Array = []
@@ -343,8 +362,7 @@ func _run_autorun_script(code: String) -> void:
 	var compile_err = script.reload()
 
 	if compile_err != OK:
-		var display_code = clean_code.replace("[", "[lb]")
-		_append_message("error", "Scene build failed — compile error " + str(compile_err) + ". Check Output panel.\n\n[color=#a0a0a0]Code:[/color]\n[bgcolor=#1a1a2e][color=#d0d0ff]" + display_code + "[/color][/bgcolor]")
+		_append_message("error", "Scene build failed — compile error " + str(compile_err) + ". Check the Output panel at the bottom of the editor for the exact line.")
 		status_label.text = "GlitchAI"
 		return
 
