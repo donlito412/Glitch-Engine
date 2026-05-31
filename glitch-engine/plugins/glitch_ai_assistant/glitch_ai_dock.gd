@@ -219,8 +219,13 @@ func _detect_scene_build_code(text: String) -> String:
 	return ""
 
 # Attempt to repair common truncation patterns before compiling
+# Skip repair for TerrainGen and FileAccess scripts — they handle their own saves
 func _repair_truncated_code(code: String) -> String:
 	var c = code.strip_edges()
+
+	# Do not patch terrain generator or file writer scripts
+	if "TerrainGen" in c or "FileAccess" in c or "terrain_generator" in c:
+		return c
 
 	# If ResourceSaver.save( is present but incomplete (no closing paren on same or next line)
 	var rs_idx = c.rfind("ResourceSaver.save(")
