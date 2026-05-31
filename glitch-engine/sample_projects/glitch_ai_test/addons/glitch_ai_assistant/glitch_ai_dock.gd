@@ -218,6 +218,39 @@ func _detect_scene_build_code(text: String) -> String:
 			return wrapped
 	return ""
 
+# Attempt to repair common truncation patterns before compiling
+func _repair_truncated_code(code: String) -> String:
+	var c = code.strip_edges()
+
+	# If ResourceSaver.save( is present but incomplete (no closing paren on same or next line)
+	var rs_idx = c.rfind("ResourceSaver.save(")
+	if rs_idx != -1:
+		var after_rs = c.substr(rs_idx)
+		if not ")" in after_rs:
+			# Truncated mid-call — remove the incomplete call, we'll add it back
+			c = c.left(rs_idx).strip_edges()
+
+	# Extract scene name from root.name = "..."
+	var scene_slug = "ai_scene"
+	var name_regex = RegEx.new()
+	name_regex.compile('root\\.name\\s*=\\s*"([^"]+)"')
+	var nm = name_regex.search(c)
+	if nm:
+		scene_slug = nm.get_string(1).to_lower().replace(" ", "_")
+
+	# If ResourceSaver is missing entirely, add save + queue_free
+	if "ResourceSaver.save" not in c:
+		var save_path = "res://scenes/" + scene_slug + "/" + scene_slug + ".tscn"
+		c += "\n\tvar scene = PackedScene.new()"
+		c += "\n\tscene.pack(root)"
+		c += "\n\tDirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(\"res://scenes/" + scene_slug + "\"))"
+		c += "\n\tResourceSaver.save(scene, \"" + save_path + "\")"
+		c += "\n\troot.queue_free()"
+	elif "root.queue_free" not in c:
+		c += "\n\troot.queue_free()"
+
+	return c
+
 func _on_response(text: String) -> void:
 	text = text.xml_unescape().replace("&qt;", ">").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
 	conversation_history.append({"role": "assistant", "content": text})
@@ -251,6 +284,7 @@ func _on_response(text: String) -> void:
 	await get_tree().process_frame
 	scroll_bar.value = scroll_before
 
+	# Re-enable input immediately so user can keep chatting
 	input_field.editable = true
 	send_button.disabled = false
 	status_label.text = "GlitchAI"
@@ -347,13 +381,14 @@ func _run_autorun_script(code: String) -> void:
 	if not clean_code.begins_with("extends"):
 		clean_code = "extends RefCounted\n\n" + clean_code
 
+	# Repair truncated code before normalizing indent
+	clean_code = _repair_truncated_code(clean_code)
+
 	# Normalize indentation (handles 2-space, 4-space, tabs, or mixed)
 	clean_code = _normalize_indent(clean_code)
 
-	# Print to Output panel so we can see exactly what is being compiled
-	print("[GlitchAI] Compiling scene script:\n", clean_code)
+	print("[GlitchAI] Compiling:\n", clean_code)
 
-	# Snapshot existing scenes before build
 	var scenes_before: Array = []
 	_collect_scene_paths("res://scenes", scenes_before)
 
@@ -362,7 +397,7 @@ func _run_autorun_script(code: String) -> void:
 	var compile_err = script.reload()
 
 	if compile_err != OK:
-		_append_message("error", "Scene build failed — compile error " + str(compile_err) + ". Check the Output panel at the bottom of the editor for the exact line.")
+		_append_message("error", "Scene build failed — compile error " + str(compile_err) + ". Check the Output tab for details.")
 		status_label.text = "GlitchAI"
 		return
 
